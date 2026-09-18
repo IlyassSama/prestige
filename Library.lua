@@ -379,7 +379,7 @@ local Templates = {
         Footer = "", -- Window:SetFooter("Script | Game | Ping | FPS | Key")
 
         Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.fromOffset(700, 520),
+        Size = UDim2.fromOffset(720, 600),
         IconSize = UDim2.fromOffset(30, 30),
 
         AutoShow = true,
@@ -415,7 +415,7 @@ local Templates = {
         MinContainerWidth = 256,
 
         --// Snapping \\--
-        MinSidebarWidth = 128,
+        MinSidebarWidth = 170,
         SidebarCompactWidth = 48,
         SidebarCollapseThreshold = 0.5,
 
@@ -439,11 +439,11 @@ local Templates = {
         TabSwipeFrom = "bottom",
         TabButtonsStyle = {
             Gap = 2,
-            Padding = 6,
+            Padding = 8,
             CornerRadius = 6,
             Indicator = true,
             IndicatorWidth = 3,
-            IndicatorHeight = 22,
+            IndicatorHeight = 30,
         },
     },
     Groupbox = {
@@ -7086,41 +7086,46 @@ do
             Parent = Label,
         })
 
-        local Switch = New("Frame", {
-            AnchorPoint = Vector2.new(1, 0),
+        local Indicator = New("Frame", {
+            AnchorPoint = Vector2.new(1, 0.5),
             BackgroundColor3 = "MainColor",
-            Position = UDim2.fromScale(1, 0),
-            Size = UDim2.fromOffset(38, 20),
+            Position = UDim2.fromScale(1, 0.5),
+            Size = UDim2.fromOffset(18, 18),
             Parent = Button,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = Switch,
+            CornerRadius = UDim.new(0, 3),
+            Parent = Indicator,
         })
-        local SwitchGradient = Library:AddAccentGradient(Switch, 0)
-        New("UIPadding", {
-            PaddingBottom = UDim.new(0, 2),
-            PaddingLeft = UDim.new(0, 2),
-            PaddingRight = UDim.new(0, 2),
-            PaddingTop = UDim.new(0, 2),
-            Parent = Switch,
-        })
-        local SwitchStroke = New("UIStroke", {
+        local IndicatorStroke = New("UIStroke", {
             Color = "OutlineColor",
-            Parent = Switch,
+            Parent = Indicator,
         })
 
-        local Ball = New("Frame", {
-            BackgroundColor3 = "FontColor",
-            Size = UDim2.fromScale(1, 1),
-            SizeConstraint = Enum.SizeConstraint.RelativeYY,
-            Parent = Switch,
+        local Accent = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = "AccentColor",
+            BackgroundTransparency = 1,
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(0, 0),
+            Parent = Indicator,
         })
         New("UICorner", {
-            CornerRadius = UDim.new(1, 0),
-            Parent = Ball,
+            CornerRadius = UDim.new(0, 3),
+            Parent = Accent,
         })
+        local AccentGradient = Library:AddAccentGradient(Accent, -115)
 
+        local CheckImage = New("ImageLabel", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://121760666525660",
+            ImageColor3 = "FontColor",
+            ImageTransparency = 1,
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(0, 0),
+            Parent = Accent,
+        })
         function Toggle:UpdateColors()
             Toggle:Display()
         end
@@ -7130,42 +7135,53 @@ do
                 return
             end
 
-            local Offset = Toggle.Value and 1 or 0
+            local accentVisible = Toggle.Value and not Toggle.Disabled
+            local accentTransparency = Toggle.Disabled and 0.5 or 0
+            local checkTransparency = Toggle.Disabled and 0.5 or 0
 
-            Switch.BackgroundTransparency = Toggle.Disabled and 0.75 or 0
-            SwitchStroke.Transparency = Toggle.Disabled and 0.75 or 0
-            SwitchGradient.Enabled = Toggle.Value and not Toggle.Disabled
-
-            Switch.BackgroundColor3 = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.MainColor
-            SwitchStroke.Color = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
-
-            Library.Registry[Switch].BackgroundColor3 = Toggle.Value and "AccentColor" or "MainColor"
-            Library.Registry[SwitchStroke].Color = Toggle.Value and "AccentColor" or "OutlineColor"
+            Indicator.BackgroundTransparency = Toggle.Disabled and 0.75 or 0
+            IndicatorStroke.Transparency = Toggle.Disabled and 0.75 or 0
+            AccentGradient.Enabled = accentVisible
 
             if Toggle.Disabled then
                 Label.TextTransparency = 0.8
-                Ball.AnchorPoint = Vector2.new(Offset, 0)
-                Ball.Position = UDim2.fromScale(Offset, 0)
-
-                Ball.BackgroundColor3 = Library:GetDarkerColor(Library.Scheme.FontColor)
-                Library.Registry[Ball].BackgroundColor3 = function()
-                    return Library:GetDarkerColor(Library.Scheme.FontColor)
-                end
-
+                Accent.Size = Toggle.Value and UDim2.fromScale(1, 1) or UDim2.fromOffset(0, 0)
+                Accent.BackgroundTransparency = Toggle.Value and accentTransparency or 1
+                CheckImage.Size = Toggle.Value and UDim2.fromOffset(10, 9) or UDim2.fromOffset(0, 0)
+                CheckImage.ImageTransparency = Toggle.Value and checkTransparency or 1
                 return
             end
 
             TweenService:Create(Label, Library.TweenInfo, {
                 TextTransparency = Toggle.Value and 0 or 0.4,
             }):Play()
-            TweenService:Create(Ball, Library.TweenInfo, {
-                AnchorPoint = Vector2.new(Offset, 0),
-                Position = UDim2.fromScale(Offset, 0),
+            TweenService:Create(Accent, Library.TweenInfo, {
+                BackgroundTransparency = Toggle.Value and 0 or 1,
+                Size = Toggle.Value and UDim2.fromScale(1, 1) or UDim2.fromOffset(0, 0),
             }):Play()
-
-            Ball.BackgroundColor3 = Library.Scheme.FontColor
-            Library.Registry[Ball].BackgroundColor3 = "FontColor"
+            TweenService:Create(CheckImage, Library.TweenInfo, {
+                ImageTransparency = Toggle.Value and 0 or 1,
+                Size = Toggle.Value and UDim2.fromOffset(10, 9) or UDim2.fromOffset(0, 0),
+            }):Play()
         end
+
+        table.insert(Toggle.Connections, Button.MouseEnter:Connect(function()
+            if Toggle.Disabled then
+                return
+            end
+
+            TweenService:Create(Indicator, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2.new(1, 3, 0.5, 0),
+                Size = UDim2.fromOffset(21, 21),
+            }):Play()
+        end))
+
+        table.insert(Toggle.Connections, Button.MouseLeave:Connect(function()
+            TweenService:Create(Indicator, TweenInfo.new(0.15, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2.fromScale(1, 0.5),
+                Size = UDim2.fromOffset(18, 18),
+            }):Play()
+        end))
 
         function Toggle:OnChanged(Func)
             Toggle.Changed = Func
@@ -10701,7 +10717,7 @@ function Library:CreateWindow(WindowInfo)
         AvoidCoreGui = WindowInfo.SnapAvoidCoreGui,
     }
 
-    local InitialLeftWidth = math.max(WindowInfo.MinSidebarWidth, math.ceil(WindowInfo.Size.X.Offset * 0.26))
+    local InitialLeftWidth = math.max(WindowInfo.MinSidebarWidth, math.ceil(WindowInfo.Size.X.Offset * 0.32))
     local IsCompact = WindowInfo.SidebarCompacted
     local LastExpandedWidth = InitialLeftWidth
 
@@ -11110,6 +11126,7 @@ function Library:CreateWindow(WindowInfo)
     --// Window Table \\--
     local Window = {}
     local Fading = false
+    local SidebarSections = {}
 
     local function SetUICorner(UICorner, Corner, HalfValue)
         local Current = UICorner[Corner]
@@ -11398,12 +11415,133 @@ function Library:CreateWindow(WindowInfo)
         end
     end
 
+    function Window:AddSidebarSection(Name: string, Info)
+        Info = Info or {}
+        assert(typeof(Name) == "string" and Trim(Name) ~= "", "Sidebar section name must be a non-empty string.")
+
+        local Order = tonumber(Info.Order) or ((#Tabs:GetChildren() + 1) * 100)
+        local SectionHeader = New("TextButton", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 26),
+            Text = "",
+            LayoutOrder = Order,
+            Parent = Tabs,
+        })
+        local SectionLabel = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(12, 0),
+            Size = UDim2.new(1, -38, 1, 0),
+            Text = Name,
+            TextSize = 13,
+            TextTransparency = 0.35,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = SectionHeader,
+        })
+        local SectionArrow = New("ImageLabel", {
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundTransparency = 1,
+            ImageColor3 = "FontColor",
+            ImageTransparency = 0.35,
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Size = UDim2.fromOffset(16, 16),
+            Parent = SectionHeader,
+        })
+        if ArrowIcon then
+            Library:ApplyLucideIcon(SectionArrow, ArrowIcon, Info.Collapsed and 0 or 180)
+        end
+
+        local SectionContainer = New("Frame", {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            LayoutOrder = Order + 0.1,
+            Size = UDim2.new(1, 0, 0, 0),
+            Visible = Info.Collapsed ~= true,
+            Parent = Tabs,
+        })
+        New("UIListLayout", {
+            Padding = UDim.new(0, 2),
+            Parent = SectionContainer,
+        })
+
+        local Section = {
+            Type = "SidebarSection",
+            Name = Name,
+            Collapsed = Info.Collapsed == true,
+            Header = SectionHeader,
+            Container = SectionContainer,
+            Tabs = {},
+        }
+
+        function Section:SetCollapsed(Collapsed: boolean)
+            Section.Collapsed = Collapsed == true
+            SectionContainer.Visible = not Section.Collapsed
+            TweenService:Create(SectionArrow, Library.TweenInfo, {
+                Rotation = Section.Collapsed and 0 or 180,
+            }):Play()
+        end
+
+        function Section:ToggleCollapsed()
+            Section:SetCollapsed(not Section.Collapsed)
+        end
+
+        function Section:SetText(Text: string)
+            assert(typeof(Text) == "string", "Expected string for section text got: " .. typeof(Text))
+            Section.Name = Text
+            SectionLabel.Text = Text
+        end
+
+        function Section:SetVisible(Visible: boolean)
+            SectionHeader.Visible = Visible == true
+            SectionContainer.Visible = Visible == true and not Section.Collapsed
+        end
+
+        function Section:AddTab(...)
+            local Arguments = { ... }
+            if typeof(Arguments[1]) == "table" then
+                Arguments[1].Section = Section
+                return Window:AddTab(Arguments[1])
+            end
+
+            return Window:AddTab({
+                Name = Arguments[1],
+                Icon = Arguments[2],
+                Description = Arguments[3],
+                Order = Arguments[4],
+                Section = Section,
+            })
+        end
+
+        function Section:AddKeyTab(...)
+            local Arguments = { ... }
+            if typeof(Arguments[1]) == "table" then
+                Arguments[1].Section = Section
+                return Window:AddKeyTab(Arguments[1])
+            end
+
+            return Window:AddKeyTab({
+                Name = Arguments[1],
+                Icon = Arguments[2],
+                Description = Arguments[3],
+                Order = Arguments[4],
+                Section = Section,
+            })
+        end
+
+        SectionHeader.MouseButton1Click:Connect(function()
+            Section:ToggleCollapsed()
+        end)
+
+        SidebarSections[Name] = Section
+        return Section
+    end
+
     function Window:AddTab(...)
         local Name = nil
         local Icon = nil
         local Description = nil
         local Tooltip = nil
         local Order = nil
+        local Section = nil
 
         if select("#", ...) == 1 and typeof(...) == "table" then
             local Info = select(1, ...)
@@ -11412,6 +11550,7 @@ function Library:CreateWindow(WindowInfo)
             Description = Info.Description
             Tooltip = Info.Tooltip
             Order = Info.Order
+            Section = Info.Section
         else
             Name = select(1, ...)
             Icon = select(2, ...)
@@ -11419,8 +11558,15 @@ function Library:CreateWindow(WindowInfo)
             Order = select(4, ...)
         end
 
+        if typeof(Section) == "string" then
+            Section = SidebarSections[Section]
+        end
+        if Section then
+            assert(Section.Type == "SidebarSection", "Section must be a sidebar section returned by Window:AddSidebarSection.")
+        end
+
         if not tonumber(Order) then
-            Order = #Tabs:GetChildren()
+            Order = Section and #Section.Container:GetChildren() or #Tabs:GetChildren()
         end
 
         local TabButton: TextButton
@@ -11437,10 +11583,10 @@ function Library:CreateWindow(WindowInfo)
             TabButton = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 34),
+                Size = UDim2.new(1, 0, 0, 40),
                 Text = "",
                 LayoutOrder = Order,
-                Parent = Tabs,
+                Parent = Section and Section.Container or Tabs,
             })
             New("UICorner", {
                 CornerRadius = UDim.new(0, TabButtonsStyle.CornerRadius),
@@ -11452,7 +11598,7 @@ function Library:CreateWindow(WindowInfo)
                     AnchorPoint = Vector2.new(0, 0.5),
                     BackgroundColor3 = "AccentColor",
                     BackgroundTransparency = 1,
-                    Position = UDim2.fromOffset(2, 0),
+                    Position = UDim2.new(0, 2, 0.5, 0),
                     Size = UDim2.fromOffset(TabButtonsStyle.IndicatorWidth, TabButtonsStyle.IndicatorHeight),
                     Parent = TabButton,
                 })
@@ -11470,10 +11616,10 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TabButton,
             })
             local ButtonPadding = New("UIPadding", {
-                PaddingBottom = UDim.new(0, IsCompact and 5 or 8),
-                PaddingLeft = UDim.new(0, IsCompact and 5 or 10),
-                PaddingRight = UDim.new(0, IsCompact and 5 or 10),
-                PaddingTop = UDim.new(0, IsCompact and 5 or 8),
+                PaddingBottom = UDim.new(0, IsCompact and 6 or 10),
+                PaddingLeft = UDim.new(0, IsCompact and 6 or 12),
+                PaddingRight = UDim.new(0, IsCompact and 6 or 12),
+                PaddingTop = UDim.new(0, IsCompact and 6 or 10),
                 Parent = ButtonHolder,
             })
             TabLabel = New("TextLabel", {
@@ -11481,7 +11627,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromOffset(30, 0),
                 Size = UDim2.new(1, -30, 1, 0),
                 Text = Name,
-                TextSize = 14,
+                TextSize = 15,
                 TextTransparency = 0.5,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Visible = not IsCompact,
@@ -11498,6 +11644,9 @@ function Library:CreateWindow(WindowInfo)
                     Parent = ButtonHolder,
                 })
                 Library:ApplyLucideIcon(TabIcon, Icon)
+                if not Icon.Custom then
+                    Library:AddAccentGradient(TabIcon, 0)
+                end
             end
 
             table.insert(Library.TabButtons, {
@@ -11839,7 +11988,7 @@ function Library:CreateWindow(WindowInfo)
 
                 TabboxButtons = New("Frame", {
                     BackgroundTransparency = 1,
-                    Size = UDim2.new(1, 0, 0, 30),
+                    Size = UDim2.new(1, 0, 0, 34),
                     Parent = TabboxHolder,
                 })
                 New("UIListLayout", {
@@ -11896,7 +12045,7 @@ function Library:CreateWindow(WindowInfo)
                 local Button = New("TextButton", {
                     BackgroundColor3 = "MainColor",
                     BackgroundTransparency = 0,
-                    Size = UDim2.fromOffset(0, 30),
+                    Size = UDim2.fromOffset(0, 34),
                     Text = "",
                     Parent = TabboxButtons,
                 })
@@ -11914,7 +12063,7 @@ function Library:CreateWindow(WindowInfo)
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundTransparency = 1,
                     Position = UDim2.fromScale(0.5, 0.5),
-                    Size = UDim2.fromOffset(0, 14),
+                    Size = UDim2.fromOffset(0, 16),
                     Parent = Button,
                 })
                 New("UIListLayout", {
@@ -11942,9 +12091,9 @@ function Library:CreateWindow(WindowInfo)
                     ButtonLabel = New("TextLabel", {
                         AutomaticSize = Enum.AutomaticSize.X,
                         BackgroundTransparency = 1,
-                        Size = UDim2.fromOffset(0, 14),
+                        Size = UDim2.fromOffset(0, 16),
                         Text = Name,
-                        TextSize = 14,
+                        TextSize = 15,
                         TextTransparency = 0.5,
                         Parent = ButtonContent,
                     })
@@ -11961,9 +12110,9 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     CanvasSize = UDim2.fromScale(0, 0),
-                    Position = UDim2.fromOffset(0, 31),
+                    Position = UDim2.fromOffset(0, 35),
                     ScrollBarThickness = 0,
-                    Size = UDim2.new(1, 0, 1, -31),
+                    Size = UDim2.new(1, 0, 1, -35),
                     Visible = false,
                     Parent = TabboxHolder,
                 })
@@ -12234,10 +12383,10 @@ function Library:CreateWindow(WindowInfo)
                     Parent = GroupboxHolder,
                 })
                 New("UIPadding", {
-                    PaddingBottom = UDim.new(0, 4),
+                    PaddingBottom = UDim.new(0, 6),
                     PaddingLeft = UDim.new(0, 6),
                     PaddingRight = UDim.new(0, 6),
-                    PaddingTop = UDim.new(0, 4),
+                    PaddingTop = UDim.new(0, 6),
                     Parent = GroupboxTop,
                 })
 
@@ -12247,28 +12396,28 @@ function Library:CreateWindow(WindowInfo)
                         AnchorPoint = Vector2.new(0, 0.5),
                         ImageColor3 = BoxIcon.Custom and "WhiteColor" or "AccentColor",
                         Position = UDim2.fromScale(0, 0.5),
-                        Size = UDim2.fromOffset(18, 18),
+                        Size = UDim2.fromOffset(22, 22),
                         Parent = GroupboxTop,
                     })
                     Library:ApplyLucideIcon(GroupboxHeaderIcon, BoxIcon)
                 end
 
-                local RightInset = if Info.DisableCollapsing ~= true then 20 else 0
+                local RightInset = if Info.DisableCollapsing ~= true then 22 else 0
                 local TextsFrame = New("Frame", {
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
-                    Position = UDim2.fromOffset(BoxIcon and 20 or 0, 0),
-                    Size = UDim2.new(1, -RightInset - (BoxIcon and 20 or 0), 0, 0),
+                    Position = UDim2.fromOffset(BoxIcon and 24 or 0, 0),
+                    Size = UDim2.new(1, -RightInset - (BoxIcon and 24 or 0), 0, 0),
                     Parent = GroupboxTop,
                 })
                 New("UIListLayout", {
                     Parent = TextsFrame,
                 })
                 New("UIPadding", {
-                    PaddingBottom = UDim.new(0, 2),
-                    PaddingLeft = UDim.new(0, 4),
-                    PaddingRight = UDim.new(0, 4),
-                    PaddingTop = UDim.new(0, 2),
+                    PaddingBottom = UDim.new(0, 3),
+                    PaddingLeft = UDim.new(0, 6),
+                    PaddingRight = UDim.new(0, 6),
+                    PaddingTop = UDim.new(0, 3),
                     Parent = TextsFrame,
                 })
 
@@ -12277,7 +12426,7 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundTransparency = 1,
                     Size = UDim2.fromScale(1, 0),
                     Text = Info.Name,
-                    TextSize = 14,
+                    TextSize = 15,
                     TextWrapped = true,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Parent = TextsFrame,
@@ -12292,7 +12441,7 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundTransparency = 1,
                     Size = UDim2.fromScale(1, 0),
                     Text = Info.Description or "",
-                    TextSize = 13,
+                    TextSize = 14,
                     TextTransparency = 0.5,
                     TextWrapped = true,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -12306,7 +12455,7 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundTransparency = 1,
                     ImageColor3 = "WhiteColor",
                     Position = UDim2.fromScale(1, 0.5),
-                    Size = UDim2.fromOffset(18, 18),
+                    Size = UDim2.fromOffset(22, 22),
                     Parent = GroupboxTop,
                 })
                 if ArrowIcon then
@@ -12330,14 +12479,14 @@ function Library:CreateWindow(WindowInfo)
                 })
 
                 GroupboxList = New("UIListLayout", {
-                    Padding = UDim.new(0, 6),
+                    Padding = UDim.new(0, 8),
                     Parent = GroupboxContainer,
                 })
                 New("UIPadding", {
-                    PaddingBottom = UDim.new(0, 6),
-                    PaddingLeft = UDim.new(0, 6),
-                    PaddingRight = UDim.new(0, 6),
-                    PaddingTop = UDim.new(0, 6),
+                    PaddingBottom = UDim.new(0, 7),
+                    PaddingLeft = UDim.new(0, 7),
+                    PaddingRight = UDim.new(0, 7),
+                    PaddingTop = UDim.new(0, 7),
                     Parent = GroupboxContainer,
                 })
             end
@@ -12750,6 +12899,10 @@ function Library:CreateWindow(WindowInfo)
         end)
         TabButton.MouseButton1Click:Connect(Tab.Show)
 
+        if Section then
+            table.insert(Section.Tabs, Tab)
+        end
+
         Library.Tabs[Name] = Tab
 
         return Tab
@@ -12761,6 +12914,7 @@ function Library:CreateWindow(WindowInfo)
         local Description = nil
         local Tooltip = nil
         local Order = nil
+        local Section = nil
 
         if select("#", ...) == 1 and typeof(...) == "table" then
             local Info = select(1, ...)
@@ -12769,6 +12923,7 @@ function Library:CreateWindow(WindowInfo)
             Description = Info.Description
             Tooltip = Info.Tooltip
             Order = Info.Order
+            Section = Info.Section
         else
             Name = select(1, ...) or "Tab"
             Icon = select(2, ...)
@@ -12776,8 +12931,15 @@ function Library:CreateWindow(WindowInfo)
             Order = select(4, ...)
         end
 
+        if typeof(Section) == "string" then
+            Section = SidebarSections[Section]
+        end
+        if Section then
+            assert(Section.Type == "SidebarSection", "Section must be a sidebar section returned by Window:AddSidebarSection.")
+        end
+
         if not tonumber(Order) then
-            Order = #Tabs:GetChildren()
+            Order = Section and #Section.Container:GetChildren() or #Tabs:GetChildren()
         end
 
         Icon = Icon or "key"
@@ -12794,10 +12956,10 @@ function Library:CreateWindow(WindowInfo)
             TabButton = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 34),
+                Size = UDim2.new(1, 0, 0, 40),
                 Text = "",
                 LayoutOrder = Order,
-                Parent = Tabs,
+                Parent = Section and Section.Container or Tabs,
             })
             New("UICorner", {
                 CornerRadius = UDim.new(0, TabButtonsStyle.CornerRadius),
@@ -12809,7 +12971,7 @@ function Library:CreateWindow(WindowInfo)
                     AnchorPoint = Vector2.new(0, 0.5),
                     BackgroundColor3 = "AccentColor",
                     BackgroundTransparency = 1,
-                    Position = UDim2.fromOffset(2, 0),
+                    Position = UDim2.new(0, 2, 0.5, 0),
                     Size = UDim2.fromOffset(TabButtonsStyle.IndicatorWidth, TabButtonsStyle.IndicatorHeight),
                     Parent = TabButton,
                 })
@@ -12827,10 +12989,10 @@ function Library:CreateWindow(WindowInfo)
                 Parent = TabButton,
             })
             local ButtonPadding = New("UIPadding", {
-                PaddingBottom = UDim.new(0, IsCompact and 5 or 8),
-                PaddingLeft = UDim.new(0, IsCompact and 5 or 10),
-                PaddingRight = UDim.new(0, IsCompact and 5 or 10),
-                PaddingTop = UDim.new(0, IsCompact and 5 or 8),
+                PaddingBottom = UDim.new(0, IsCompact and 6 or 10),
+                PaddingLeft = UDim.new(0, IsCompact and 6 or 12),
+                PaddingRight = UDim.new(0, IsCompact and 6 or 12),
+                PaddingTop = UDim.new(0, IsCompact and 6 or 10),
                 Parent = ButtonHolder,
             })
 
@@ -12839,7 +13001,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromOffset(30, 0),
                 Size = UDim2.new(1, -30, 1, 0),
                 Text = Name,
-                TextSize = 14,
+                TextSize = 15,
                 TextTransparency = 0.5,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Visible = not IsCompact,
@@ -12856,6 +13018,9 @@ function Library:CreateWindow(WindowInfo)
                     Parent = ButtonHolder,
                 })
                 Library:ApplyLucideIcon(TabIcon, Icon)
+                if not Icon.Custom then
+                    Library:AddAccentGradient(TabIcon, 0)
+                end
             end
 
             table.insert(Library.TabButtons, {
@@ -13153,6 +13318,10 @@ function Library:CreateWindow(WindowInfo)
 
         Tab.Container = TabContainer
         setmetatable(Tab, BaseGroupbox)
+
+        if Section then
+            table.insert(Section.Tabs, Tab)
+        end
 
         Library.Tabs[Name] = Tab
 
