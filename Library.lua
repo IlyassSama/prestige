@@ -270,16 +270,16 @@ local Library = {
     OriginalMinSize = Vector2.new(480, 360),
     MinSize = Vector2.new(480, 360),
     DPIScale = 1,
-    CornerRadius = 6,
+    CornerRadius = 10,
 
     --// Scheme \\--
     IsLightTheme = false,
     Scheme = {
         BackgroundColor = Color3.fromRGB(11, 11, 14), -- #0b0b0e
         MainColor = Color3.fromRGB(18, 18, 23), -- #121217
-        AccentColor = Color3.fromRGB(23, 102, 255), -- royal blue from the Prestige logo
+        AccentColor = Color3.fromRGB(35, 112, 255), -- vivid Prestige blue
         AccentGradient = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(23, 102, 255)),
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 112, 255)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 226, 255)),
         }),
         OutlineColor = Color3.fromRGB(35, 35, 41), -- #232329
@@ -396,7 +396,8 @@ local Templates = {
         SearchbarSize = UDim2.fromScale(1, 1),
         GlobalSearch = false,
 
-        CornerRadius = 6,
+        CornerRadius = 10,
+        WindowGlow = true,
         NotifySide = "Right",
         ShowCustomCursor = true,
 
@@ -409,6 +410,9 @@ local Templates = {
         UnlockMouseWhileOpen = true,
 
         EnableSidebarResize = false,
+        SidebarIconsOnly = true, -- Set false to retain the legacy labelled sidebar/sections.
+        SidebarWidth = 76,
+        SidebarIconSize = 26,
         EnableCompacting = true,
         DisableCompactingSnap = false,
         SidebarCompacted = false,
@@ -440,7 +444,7 @@ local Templates = {
         TabButtonsStyle = {
             Gap = 2,
             Padding = 8,
-            CornerRadius = 6,
+            CornerRadius = 10,
             Indicator = true,
             IndicatorWidth = 3,
             IndicatorHeight = 30,
@@ -1104,6 +1108,7 @@ local function ApplySearchToTab(Tab, Search)
 
         --// Optional: matching the Groupbox's own name/description reveals every element inside it, without needing each one to match too
         local GroupboxMatches = TabMatches or (TryFuzzyMatch(Groupbox.Name, Search) or TryFuzzyMatch(Groupbox.Description, Search))
+            or (Groupbox.SubTab and TryFuzzyMatch(Groupbox.SubTab.Name, Search))
         BestScore = math.max(BestScore, FuzzyMatchScore(Groupbox.Name, Search), FuzzyMatchScore(Groupbox.Description, Search))
 
         local VisibleElements = 0
@@ -1164,6 +1169,7 @@ local function ApplySearchToTab(Tab, Search)
             HasVisible = true
         end
         Groupbox.BoxHolder.Visible = VisibleElements > 0
+        Groupbox.SearchVisible = VisibleElements > 0
         SyncPopOutVisibility(Groupbox)
     end
 
@@ -1177,6 +1183,7 @@ local function ApplySearchToTab(Tab, Search)
 
             --// Optional: matching a Tabbox sub-tab's own name reveals every element inside it, without needing each one to match too
             local SubTabMatches = TabMatches or TryFuzzyMatch(SubTab.Name, Search)
+                or (Tabbox.SubTab and TryFuzzyMatch(Tabbox.SubTab.Name, Search))
             local SubScore = FuzzyMatchScore(SubTab.Name, Search)
             BestScore = math.max(BestScore, SubScore)
 
@@ -1268,9 +1275,49 @@ local function ApplySearchToTab(Tab, Search)
 
         --// Update Tabbox Visibility if any visible
         Tabbox.BoxHolder.Visible = VisibleTabs > 0
+        Tabbox.SearchVisible = VisibleTabs > 0
         SyncPopOutVisibility(Tabbox)
     end
 
+    if Tab.SubTabs then
+        local Scores = {}
+        local function ScoreBox(Box)
+            local Scope = Box.SubTab
+            if not Scope or Box.Visible == false or not Box.SearchVisible then
+                return
+            end
+            local Score = math.max(FuzzyMatchScore(Scope.Name, Search), FuzzyMatchScore(Box.Name, Search), FuzzyMatchScore(Box.Description, Search))
+            local function ScoreElements(Elements)
+                for _, Element in Elements do
+                    if Element.Visible ~= false and Element.Holder.Visible then
+                        Score = math.max(Score, FuzzyMatchScore(Element.Text, Search))
+                    end
+                end
+            end
+            if Box.Elements then
+                ScoreElements(Box.Elements)
+            end
+            if Box.Tabs then
+                for _, InnerTab in Box.Tabs do
+                    Score = math.max(Score, FuzzyMatchScore(InnerTab.Name, Search))
+                    ScoreElements(InnerTab.Elements)
+                end
+            end
+            Scores[Scope] = math.max(Scores[Scope] or -1, Score)
+        end
+        for _, Box in Tab.Groupboxes do ScoreBox(Box) end
+        for _, Box in Tab.Tabboxes do ScoreBox(Box) end
+        local BestSubTab = Tab.ActiveSubTab
+        local BestSubScore = Scores[BestSubTab] or -1
+        for _, SubTab in Tab.SubTabOrder do
+            if (Scores[SubTab] or -1) > BestSubScore then
+                BestSubTab = SubTab
+                BestSubScore = Scores[SubTab]
+            end
+        end
+        Tab.ActiveSubTab = BestSubTab
+        Tab:RefreshSubTabs()
+    end
     return HasVisible, BestScore
 end
 local function ResetTab(Tab)
@@ -1279,6 +1326,7 @@ local function ResetTab(Tab)
     end
 
     for _, Groupbox in Tab.Groupboxes do
+        Groupbox.SearchVisible = nil
         for _, ElementInfo in Groupbox.Elements do
             ElementInfo.Holder.Visible = ElementInfo.Visible ~= false
 
@@ -1302,6 +1350,7 @@ local function ResetTab(Tab)
     end
 
     for _, Tabbox in Tab.Tabboxes do
+        Tabbox.SearchVisible = nil
         for _, SubTab in Tabbox.Tabs do
             for _, ElementInfo in SubTab.Elements do
                 ElementInfo.Holder.Visible = ElementInfo.Visible ~= false
@@ -1328,6 +1377,9 @@ local function ResetTab(Tab)
         end
         Tabbox.BoxHolder.Visible = true
         SyncPopOutVisibility(Tabbox)
+    end
+    if Tab.RefreshSubTabs then
+        Tab:RefreshSubTabs()
     end
 end
 
@@ -10700,10 +10752,10 @@ function Library:CreateWindow(WindowInfo)
     local RightWrapper
     local SearchBox
     local CurrentTabInfo
-    local CurrentTabLabel
-    local CurrentTabDescription
     local ResizeButton
     local Tabs
+    local UtilityTabs
+    local UtilityTabsLayout
     local Container
     local BackgroundImage
     local HasBackgroundImage = false
@@ -10717,8 +10769,9 @@ function Library:CreateWindow(WindowInfo)
         AvoidCoreGui = WindowInfo.SnapAvoidCoreGui,
     }
 
-    local InitialLeftWidth = math.max(WindowInfo.MinSidebarWidth, math.ceil(WindowInfo.Size.X.Offset * 0.32))
-    local IsCompact = WindowInfo.SidebarCompacted
+    local InitialLeftWidth = WindowInfo.SidebarIconsOnly and math.max(64, WindowInfo.SidebarWidth)
+        or math.max(WindowInfo.MinSidebarWidth, math.ceil(WindowInfo.Size.X.Offset * 0.32))
+    local IsCompact = WindowInfo.SidebarIconsOnly or WindowInfo.SidebarCompacted
     local LastExpandedWidth = InitialLeftWidth
 
     do
@@ -10752,6 +10805,15 @@ function Library:CreateWindow(WindowInfo)
             })
         )
         Library:AddOutline(MainFrame)
+        if WindowInfo.WindowGlow then
+            New("UIStroke", {
+                Color = "AccentColor",
+                Thickness = 5,
+                Transparency = 0.88,
+                ZIndex = 0,
+                Parent = MainFrame,
+            })
+        end
         Library:MakeLine(MainFrame, {
             Position = UDim2.fromOffset(0, 48),
             Size = UDim2.new(1, 0, 0, 1),
@@ -10869,6 +10931,7 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(0, X, 1, 0),
             Text = WindowInfo.Title,
             TextSize = 20,
+            Visible = not WindowInfo.SidebarIconsOnly,
             Parent = TitleHolder,
         })
 
@@ -10898,43 +10961,6 @@ function Library:CreateWindow(WindowInfo)
 
         New("UIFlexItem", {
             FlexMode = Enum.UIFlexMode.Grow,
-            Parent = CurrentTabInfo,
-        })
-
-        New("UIListLayout", {
-            FillDirection = Enum.FillDirection.Vertical,
-            HorizontalAlignment = Enum.HorizontalAlignment.Left,
-            VerticalAlignment = Enum.VerticalAlignment.Center,
-            Parent = CurrentTabInfo,
-        })
-
-        New("UIPadding", {
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
-            PaddingTop = UDim.new(0, 8),
-            Parent = CurrentTabInfo,
-        })
-
-        CurrentTabLabel = New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Text = "",
-            TextSize = 14,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = CurrentTabInfo,
-        })
-
-        CurrentTabDescription = New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.fromScale(1, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Text = "",
-            TextWrapped = true,
-            TextSize = 14,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextTransparency = 0.5,
             Parent = CurrentTabInfo,
         })
 
@@ -11090,6 +11116,7 @@ function Library:CreateWindow(WindowInfo)
         })
         New("UIListLayout", {
             Padding = UDim.new(0, TabButtonsStyle.Gap),
+            SortOrder = Enum.SortOrder.LayoutOrder,
             Parent = Tabs,
         })
         New("UIPadding", {
@@ -11122,6 +11149,44 @@ function Library:CreateWindow(WindowInfo)
 
         Library.WindowContainer = Container
     end
+
+    -- Utility navigation stays outside the scrolling main list.
+    UtilityTabs = New("Frame", {
+        AnchorPoint = Vector2.new(0, 1),
+        BackgroundColor3 = "BackgroundColor",
+        Position = UDim2.new(0, 0, 1, -21),
+        Size = UDim2.fromOffset(InitialLeftWidth, 0),
+        Parent = MainFrame,
+    })
+    UtilityTabsLayout = New("UIListLayout", {
+        Padding = UDim.new(0, TabButtonsStyle.Gap),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = UtilityTabs,
+    })
+    New("UIPadding", {
+        PaddingTop = UDim.new(0, TabButtonsStyle.Padding + 4),
+        PaddingBottom = UDim.new(0, TabButtonsStyle.Padding),
+        PaddingLeft = UDim.new(0, TabButtonsStyle.Padding),
+        PaddingRight = UDim.new(0, TabButtonsStyle.Padding),
+        Parent = UtilityTabs,
+    })
+    local UtilityDivider = New("Frame", {
+        BackgroundColor3 = "OutlineColor",
+        Position = UDim2.fromOffset(8, 0),
+        Size = UDim2.new(1, -16, 0, 1),
+        Parent = MainFrame,
+    })
+    local function RefreshUtilityTabs()
+        local Height = UtilityTabsLayout.AbsoluteContentSize.Y / Library.DPIScale
+        Height = Height > 0 and Height + TabButtonsStyle.Padding * 2 + 4 or 0
+        UtilityTabs.Size = UDim2.fromOffset(Tabs.Size.X.Offset, Height)
+        UtilityDivider.Visible = Height > 0
+        UtilityDivider.Position = UDim2.new(0, 8, 1, -21 - Height)
+        UtilityDivider.Size = UDim2.fromOffset(Tabs.Size.X.Offset - 16, 1)
+        Tabs.Size = UDim2.new(0, Tabs.Size.X.Offset, 1, -70 - Height)
+    end
+    Library:GiveSignal(UtilityTabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(RefreshUtilityTabs))
+    RefreshUtilityTabs()
 
     --// Window Table \\--
     local Window = {}
@@ -11344,8 +11409,8 @@ function Library:CreateWindow(WindowInfo)
     end
 
     local function ApplyCompact()
-        IsCompact = Window:GetSidebarWidth() == WindowInfo.SidebarCompactWidth
-        if WindowInfo.DisableCompactingSnap then
+        IsCompact = WindowInfo.SidebarIconsOnly or Window:GetSidebarWidth() == WindowInfo.SidebarCompactWidth
+        if not WindowInfo.SidebarIconsOnly and WindowInfo.DisableCompactingSnap then
             IsCompact = Window:GetSidebarWidth() <= WindowInfo.CompactWidthActivation
         end
 
@@ -11365,6 +11430,12 @@ function Library:CreateWindow(WindowInfo)
             Button.Padding.PaddingRight = UDim.new(0, IsCompact and 6 or 12)
             Button.Padding.PaddingTop = UDim.new(0, IsCompact and 6 or 11)
             Button.Icon.SizeConstraint = IsCompact and Enum.SizeConstraint.RelativeXY or Enum.SizeConstraint.RelativeYY
+            if WindowInfo.SidebarIconsOnly then
+                Button.Icon.AnchorPoint = Vector2.new(0.5, 0.5)
+                Button.Icon.Position = UDim2.fromScale(0.5, 0.5)
+                Button.Icon.Size = UDim2.fromOffset(WindowInfo.SidebarIconSize, WindowInfo.SidebarIconSize)
+                Button.Icon.SizeConstraint = Enum.SizeConstraint.RelativeXY
+            end
         end
     end
 
@@ -11373,6 +11444,10 @@ function Library:CreateWindow(WindowInfo)
     end
 
     function Window:SetCompact(State)
+        if WindowInfo.SidebarIconsOnly then
+            Window:SetSidebarWidth(State and math.max(64, WindowInfo.SidebarCompactWidth) or WindowInfo.SidebarWidth)
+            return
+        end
         Window:SetSidebarWidth(State and WindowInfo.SidebarCompactWidth or LastExpandedWidth)
     end
 
@@ -11381,7 +11456,7 @@ function Library:CreateWindow(WindowInfo)
     end
 
     function Window:SetSidebarWidth(Width)
-        Width = math.clamp(Width, 48, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1)
+        Width = math.clamp(Width, WindowInfo.SidebarIconsOnly and 64 or 48, math.max(64, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1))
 
         DividerLine.Position = UDim2.fromOffset(Width, 0)
 
@@ -11390,7 +11465,8 @@ function Library:CreateWindow(WindowInfo)
         Tabs.Size = UDim2.new(0, Width, 1, -70)
         Container.Size = UDim2.new(1, -Width - 1, 1, -70)
 
-        if WindowInfo.EnableCompacting then
+        RefreshUtilityTabs()
+        if WindowInfo.EnableCompacting or WindowInfo.SidebarIconsOnly then
             ApplyCompact()
         end
         if not IsCompact then
@@ -11399,20 +11475,12 @@ function Library:CreateWindow(WindowInfo)
     end
 
     function Window:ShowTabInfo(Name, Description)
-        CurrentTabLabel.Text = Name
-        CurrentTabDescription.Text = Description
-
-        if IsDefaultSearchbarSize then
-            SearchBox.Size = UDim2.fromScale(0.5, 1)
-        end
-        CurrentTabInfo.Visible = true
+        -- Kept for existing scripts; page titles now live in navigation tooltips.
+        WindowInfo.TabInfo = { Name = Name, Description = Description }
     end
 
     function Window:HideTabInfo()
-        CurrentTabInfo.Visible = false
-        if IsDefaultSearchbarSize then
-            SearchBox.Size = UDim2.fromScale(1, 1)
-        end
+        WindowInfo.TabInfo = nil
     end
 
     function Window:AddSidebarSection(Name: string, Info)
@@ -11472,9 +11540,14 @@ function Library:CreateWindow(WindowInfo)
             Tabs = {},
         }
 
+        if WindowInfo.SidebarIconsOnly then
+            SectionHeader.Visible = false
+            SectionContainer.Visible = false
+        end
+
         function Section:SetCollapsed(Collapsed: boolean)
             Section.Collapsed = Collapsed == true
-            SectionContainer.Visible = not Section.Collapsed
+            SectionContainer.Visible = not WindowInfo.SidebarIconsOnly and not Section.Collapsed
             TweenService:Create(SectionArrow, Library.TweenInfo, {
                 Rotation = Section.Collapsed and 0 or 180,
             }):Play()
@@ -11491,8 +11564,13 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Section:SetVisible(Visible: boolean)
-            SectionHeader.Visible = Visible == true
-            SectionContainer.Visible = Visible == true and not Section.Collapsed
+            SectionHeader.Visible = not WindowInfo.SidebarIconsOnly and Visible == true
+            SectionContainer.Visible = not WindowInfo.SidebarIconsOnly and Visible == true and not Section.Collapsed
+            if WindowInfo.SidebarIconsOnly then
+                for _, Tab in Section.Tabs do
+                    Tab:SetVisible(Visible)
+                end
+            end
         end
 
         function Section:AddTab(...)
@@ -11542,6 +11620,7 @@ function Library:CreateWindow(WindowInfo)
         local Tooltip = nil
         local Order = nil
         local Section = nil
+        local Pinned = nil
 
         if select("#", ...) == 1 and typeof(...) == "table" then
             local Info = select(1, ...)
@@ -11551,6 +11630,7 @@ function Library:CreateWindow(WindowInfo)
             Tooltip = Info.Tooltip
             Order = Info.Order
             Section = Info.Section
+            Pinned = Info.Pinned
         else
             Name = select(1, ...)
             Icon = select(2, ...)
@@ -11565,6 +11645,12 @@ function Library:CreateWindow(WindowInfo)
             assert(Section.Type == "SidebarSection", "Section must be a sidebar section returned by Window:AddSidebarSection.")
         end
 
+        if Pinned == nil then
+            local LowerName = string.lower(Name)
+            Pinned = WindowInfo.SidebarIconsOnly and (LowerName == "settings" or LowerName == "ui settings" or LowerName == "profiles")
+        end
+        Tooltip = Tooltip or Name
+
         if not tonumber(Order) then
             Order = Section and #Section.Container:GetChildren() or #Tabs:GetChildren()
         end
@@ -11578,20 +11664,20 @@ function Library:CreateWindow(WindowInfo)
         local TabLeft
         local TabRight
 
-        Icon = Library:GetCustomIcon(Icon)
+        Icon = Library:GetCustomIcon(Icon) or (WindowInfo.SidebarIconsOnly and Library:GetIcon("circle"))
         do
             TabButton = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 40),
+                Size = UDim2.new(1, 0, 0, WindowInfo.SidebarIconsOnly and 48 or 40),
                 Text = "",
                 LayoutOrder = Order,
-                Parent = Section and Section.Container or Tabs,
+                Parent = Pinned and UtilityTabs or (not WindowInfo.SidebarIconsOnly and Section and Section.Container or Tabs),
             })
-            New("UICorner", {
+            table.insert(Library.Corners, New("UICorner", {
                 CornerRadius = UDim.new(0, TabButtonsStyle.CornerRadius),
                 Parent = TabButton,
-            })
+            }))
 
             if TabButtonsStyle.Indicator then
                 TabIndicator = New("Frame", {
@@ -11638,8 +11724,10 @@ function Library:CreateWindow(WindowInfo)
                 TabIcon = New("ImageLabel", {
                     ImageColor3 = Icon.Custom and "WhiteColor" or "AccentColor",
                     ImageTransparency = 0.5,
+                    AnchorPoint = WindowInfo.SidebarIconsOnly and Vector2.new(0.5, 0.5) or Vector2.zero,
+                    Position = WindowInfo.SidebarIconsOnly and UDim2.fromScale(0.5, 0.5) or UDim2.fromOffset(0, 0),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromScale(1, 1),
+                    Size = WindowInfo.SidebarIconsOnly and UDim2.fromOffset(WindowInfo.SidebarIconSize, WindowInfo.SidebarIconSize) or UDim2.fromScale(1, 1),
                     SizeConstraint = IsCompact and Enum.SizeConstraint.RelativeXY or Enum.SizeConstraint.RelativeYY,
                     Parent = ButtonHolder,
                 })
@@ -11650,6 +11738,7 @@ function Library:CreateWindow(WindowInfo)
             end
 
             table.insert(Library.TabButtons, {
+                Button = TabButton,
                 Label = TabLabel,
                 Padding = ButtonPadding,
                 Icon = TabIcon,
@@ -11762,7 +11851,27 @@ function Library:CreateWindow(WindowInfo)
             Groupboxes = {},
             Tabboxes = {},
             DependencyGroupboxes = {},
+            SubTabs = {},
+            SubTabOrder = {},
+            ActiveSubTab = nil,
         }
+
+        Tab.SubTabBar = New("ScrollingFrame", {
+            AutomaticCanvasSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            CanvasSize = UDim2.fromOffset(0, 0),
+            ScrollBarThickness = 0,
+            ScrollingDirection = Enum.ScrollingDirection.X,
+            Size = UDim2.fromScale(1, 1),
+            Visible = false,
+            Parent = CurrentTabInfo,
+        })
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 6),
+            Parent = Tab.SubTabBar,
+        })
 
         --// Warning Box \\--
         local WarningBoxHolder = New("Frame", {
@@ -11939,9 +12048,131 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
         end
 
+        function Tab:RefreshSubTabs()
+            local function RefreshBoxes(Boxes)
+                for _, Box in Boxes do
+                    if Box.Destroyed then
+                        continue
+                    end
+                    local InSubTab = not Box.SubTab or Box.SubTab == Tab.ActiveSubTab
+                    local SearchVisible = not Library.Searching or Box.SearchVisible ~= false
+                    local ParentVisible = not Box.ParentBox or Box.ParentBox.BoxHolder.Visible
+                    Box.BoxHolder.Visible = Box.Visible ~= false and InSubTab and SearchVisible and ParentVisible
+                    SyncPopOutVisibility(Box)
+                end
+            end
+            RefreshBoxes(Tab.Groupboxes)
+            RefreshBoxes(Tab.Tabboxes)
+
+            for _, SubTab in Tab.SubTabOrder do
+                local Selected = SubTab == Tab.ActiveSubTab
+                SubTab.Button.BackgroundTransparency = Selected and 0.2 or 1
+                SubTab.Button.TextColor3 = Selected and Library.Scheme.AccentColor or Library.Scheme.FontColor
+                Library.Registry[SubTab.Button].TextColor3 = Selected and "AccentColor" or "FontColor"
+                SubTab.Indicator.Visible = Selected
+            end
+            if Library.ActiveTab == Tab then
+                local HasSubTabs = #Tab.SubTabOrder > 0
+                CurrentTabInfo.Visible = HasSubTabs
+                Tab.SubTabBar.Visible = HasSubTabs
+                if IsDefaultSearchbarSize then
+                    SearchBox.Size = UDim2.fromScale(HasSubTabs and 0.4 or 1, 1)
+                end
+            end
+        end
+
+        function Tab:SetSubTab(Name)
+            local SubTab = typeof(Name) == "table" and Name or Tab.SubTabs[Name]
+            assert(SubTab and SubTab.Tab == Tab, "Unknown sub-tab: " .. tostring(Name))
+            SubTab:Show()
+        end
+
+        function Tab:AddSubTab(Name)
+            assert(typeof(Name) == "string" and Trim(Name) ~= "", "Sub-tab name must be a non-empty string.")
+            if Tab.SubTabs[Name] then
+                return Tab.SubTabs[Name]
+            end
+            local TextWidth = Library:GetTextBounds(Name, Library.Scheme.Font, 14)
+            local Button = New("TextButton", {
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0, TextWidth + 24, 1, 0),
+                Text = Name,
+                TextSize = 14,
+                LayoutOrder = #Tab.SubTabOrder + 1,
+                Parent = Tab.SubTabBar,
+            })
+            table.insert(Library.Corners, New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius / 2),
+                Parent = Button,
+            }))
+            local Indicator = New("Frame", {
+                AnchorPoint = Vector2.new(0, 1),
+                BackgroundColor3 = "AccentColor",
+                Position = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 0, 2),
+                Visible = false,
+                Parent = Button,
+            })
+            local SubTab = {
+                Type = "SubTab", Name = Name, Tab = Tab, Button = Button, Indicator = Indicator,
+                Sides = Tab.Sides,
+            }
+            function SubTab:Show()
+                if Tab.Destroyed then
+                    return
+                end
+                Tab.ActiveSubTab = SubTab
+                if Library.ActiveTab ~= Tab then
+                    Tab:Show()
+                end
+                Tab:RefreshSubTabs()
+            end
+            function SubTab:AddGroupbox(Info)
+                Info = table.clone(Info or {})
+                Info.SubTab = SubTab
+                return Tab:AddGroupbox(Info)
+            end
+            function SubTab:AddTabbox(Info)
+                Info = table.clone(Info or {})
+                Info.SubTab = SubTab
+                return Tab:AddTabbox(Info)
+            end
+            function SubTab:AddLeftGroupbox(Name, IconName, Visible, Collapsed, DisableCollapsing)
+                return SubTab:AddGroupbox({ Side = 1, Name = Name, IconName = IconName, Visible = Visible, Collapsed = Collapsed, DisableCollapsing = DisableCollapsing })
+            end
+            function SubTab:AddRightGroupbox(Name, IconName, Visible, Collapsed, DisableCollapsing)
+                return SubTab:AddGroupbox({ Side = 2, Name = Name, IconName = IconName, Visible = Visible, Collapsed = Collapsed, DisableCollapsing = DisableCollapsing })
+            end
+            function SubTab:AddLeftTabbox(Name)
+                return SubTab:AddTabbox({ Side = 1, Name = Name })
+            end
+            function SubTab:AddRightTabbox(Name)
+                return SubTab:AddTabbox({ Side = 2, Name = Name })
+            end
+            Tab.SubTabs[Name] = SubTab
+            table.insert(Tab.SubTabOrder, SubTab)
+            table.insert(Tab.Connections, Button.MouseButton1Click:Connect(function() SubTab:Show() end))
+            if not Tab.ActiveSubTab then
+                Tab.ActiveSubTab = SubTab
+            end
+            Tab:RefreshSubTabs()
+            return SubTab
+        end
+
+        local function ResolveSubTab(SubTab)
+            if typeof(SubTab) == "string" then
+                SubTab = Tab.SubTabs[SubTab]
+                assert(SubTab, "Unknown sub-tab name.")
+            end
+            assert(SubTab == nil or SubTab.Tab == Tab, "Sub-tab must belong to this tab.")
+            return SubTab
+        end
+
         local function AddTabbox(self, Info)
             Info = Library:Validate(Info, Templates.Tabbox)
             local ParentObj = self
+            local SubTab = ResolveSubTab(Info.SubTab or ParentObj.SubTab)
 
             if typeof(Info.Side) == "string" then
                 local lowerSide = string.lower(Info.Side)
@@ -12016,6 +12247,8 @@ function Library:CreateWindow(WindowInfo)
                 Tabs = {},
 
                 ParentBox = if ParentObj.Type == "Groupbox" then ParentObj else nil,
+                SubTab = SubTab,
+                Tab = Tab,
             }
 
             function Tabbox:UpdateCorners()
@@ -12298,11 +12531,12 @@ function Library:CreateWindow(WindowInfo)
             end
 
             if Info.Name then
-                Tab.Tabboxes[Info.Name] = Tabbox
+                Tab.Tabboxes[(SubTab and SubTab.Name .. "/" or "") .. Info.Name] = Tabbox
             else
                 table.insert(Tab.Tabboxes, Tabbox)
             end
 
+            Tab:RefreshSubTabs()
             return Tabbox
         end
 
@@ -12320,6 +12554,7 @@ function Library:CreateWindow(WindowInfo)
 
         function Tab:AddGroupbox(Info)
             Info = Library:Validate(Info, Templates.Groupbox)
+            local SubTab = ResolveSubTab(Info.SubTab)
 
             if typeof(Info.Side) == "string" then
                 local lowerSide = string.lower(Info.Side)
@@ -12508,6 +12743,7 @@ function Library:CreateWindow(WindowInfo)
                 Container = GroupboxContainer,
 
                 Tab = Tab,
+                SubTab = SubTab,
                 DependencyBoxes = {},
                 Elements = {}
             }
@@ -12673,6 +12909,7 @@ function Library:CreateWindow(WindowInfo)
             function Groupbox:SetVisible(Visible: boolean)
                 Groupbox.Visible = Visible
                 BoxHolder.Visible = Visible
+                Tab:RefreshSubTabs()
                 SyncPopOutVisibility(Groupbox)
 
                 if Visible == true and Library.Searching then
@@ -12698,7 +12935,7 @@ function Library:CreateWindow(WindowInfo)
             setmetatable(Groupbox, BaseGroupbox)
 
             Groupbox:Resize()
-            Tab.Groupboxes[Info.Name] = Groupbox
+            Tab.Groupboxes[(SubTab and SubTab.Name .. "/" or "") .. Info.Name] = Groupbox
 
             if Info.Visible == false then
                 Groupbox:Hide()
@@ -12708,6 +12945,7 @@ function Library:CreateWindow(WindowInfo)
                 Groupbox:SetCollapsed(true)
             end
 
+            Tab:RefreshSubTabs()
             return Groupbox
         end
 
@@ -12770,6 +13008,7 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
 
             Library.ActiveTab = Tab
+            Tab:RefreshSubTabs()
 
             if Library.Searching then
                 Library:UpdateSearch(Library.SearchText)
@@ -12798,6 +13037,8 @@ function Library:CreateWindow(WindowInfo)
             end
 
             Library:PlayTabAnimation(Tab, false)
+            Tab.SubTabBar.Visible = false
+            CurrentTabInfo.Visible = false
             Window:HideTabInfo()
 
             Library.PreviousTab = Tab
@@ -12818,6 +13059,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:SetTooltip(Text: string?)
+            Text = Text or Name
             Tab.Tooltip = Text
 
             if Tab.TooltipTable then
@@ -12832,6 +13074,7 @@ function Library:CreateWindow(WindowInfo)
 
         function Tab:Destroy()
             Tab.Destroyed = true
+            Tab.SubTabBar:Destroy()
 
             if Tab.Connections then
                 for _, Connection in Tab.Connections do
@@ -12915,6 +13158,7 @@ function Library:CreateWindow(WindowInfo)
         local Tooltip = nil
         local Order = nil
         local Section = nil
+        local Pinned = nil
 
         if select("#", ...) == 1 and typeof(...) == "table" then
             local Info = select(1, ...)
@@ -12924,6 +13168,7 @@ function Library:CreateWindow(WindowInfo)
             Tooltip = Info.Tooltip
             Order = Info.Order
             Section = Info.Section
+            Pinned = Info.Pinned
         else
             Name = select(1, ...) or "Tab"
             Icon = select(2, ...)
@@ -12937,6 +13182,12 @@ function Library:CreateWindow(WindowInfo)
         if Section then
             assert(Section.Type == "SidebarSection", "Section must be a sidebar section returned by Window:AddSidebarSection.")
         end
+
+        if Pinned == nil then
+            local LowerName = string.lower(Name)
+            Pinned = WindowInfo.SidebarIconsOnly and (LowerName == "settings" or LowerName == "ui settings" or LowerName == "profiles")
+        end
+        Tooltip = Tooltip or Name
 
         if not tonumber(Order) then
             Order = Section and #Section.Container:GetChildren() or #Tabs:GetChildren()
@@ -12956,15 +13207,15 @@ function Library:CreateWindow(WindowInfo)
             TabButton = New("TextButton", {
                 BackgroundColor3 = "MainColor",
                 BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 40),
+                Size = UDim2.new(1, 0, 0, WindowInfo.SidebarIconsOnly and 48 or 40),
                 Text = "",
                 LayoutOrder = Order,
-                Parent = Section and Section.Container or Tabs,
+                Parent = Pinned and UtilityTabs or (not WindowInfo.SidebarIconsOnly and Section and Section.Container or Tabs),
             })
-            New("UICorner", {
+            table.insert(Library.Corners, New("UICorner", {
                 CornerRadius = UDim.new(0, TabButtonsStyle.CornerRadius),
                 Parent = TabButton,
-            })
+            }))
 
             if TabButtonsStyle.Indicator then
                 TabIndicator = New("Frame", {
@@ -13012,8 +13263,10 @@ function Library:CreateWindow(WindowInfo)
                 TabIcon = New("ImageLabel", {
                     ImageColor3 = Icon.Custom and "WhiteColor" or "AccentColor",
                     ImageTransparency = 0.5,
+                    AnchorPoint = WindowInfo.SidebarIconsOnly and Vector2.new(0.5, 0.5) or Vector2.zero,
+                    Position = WindowInfo.SidebarIconsOnly and UDim2.fromScale(0.5, 0.5) or UDim2.fromOffset(0, 0),
                     ScaleType = Enum.ScaleType.Fit,
-                    Size = UDim2.fromScale(1, 1),
+                    Size = WindowInfo.SidebarIconsOnly and UDim2.fromOffset(WindowInfo.SidebarIconSize, WindowInfo.SidebarIconSize) or UDim2.fromScale(1, 1),
                     SizeConstraint = IsCompact and Enum.SizeConstraint.RelativeXY or Enum.SizeConstraint.RelativeYY,
                     Parent = ButtonHolder,
                 })
@@ -13024,6 +13277,7 @@ function Library:CreateWindow(WindowInfo)
             end
 
             table.insert(Library.TabButtons, {
+                Button = TabButton,
                 Label = TabLabel,
                 Padding = ButtonPadding,
                 Icon = TabIcon,
@@ -13055,6 +13309,7 @@ function Library:CreateWindow(WindowInfo)
 
         --// Tab Table \\--
         local Tab = {
+            Name = Name,
             Description = Description,
             IsKeyTab = true,
 
@@ -13244,6 +13499,8 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
 
             Library.ActiveTab = Tab
+            CurrentTabInfo.Visible = false
+            if IsDefaultSearchbarSize then SearchBox.Size = UDim2.fromScale(1, 1) end
 
             if Library.Searching then
                 Library:UpdateSearch(Library.SearchText)
@@ -13287,6 +13544,7 @@ function Library:CreateWindow(WindowInfo)
         end
 
         function Tab:SetTooltip(Text: string?)
+            Text = Text or Name
             Tab.Tooltip = Text
 
             if Tab.TooltipTable then
