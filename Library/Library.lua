@@ -10976,12 +10976,25 @@ function Library:CreateWindow(WindowInfo)
 
         if WindowInfo.Icon then
             local Icon = Library:GetCustomIcon(WindowInfo.Icon)
-            WindowIcon = New("ImageLabel", {
-                Size = WindowInfo.IconSize,
+            -- Logo sits in a rounded square so it reads bigger; the square fills the 48px top bar.
+            WindowIcon = New("Frame", {
+                BackgroundColor3 = "MainColor",
+                Size = UDim2.fromOffset(WindowInfo.IconSize.X.Offset + 6, WindowInfo.IconSize.Y.Offset + 6),
                 Parent = TitleHolder,
             })
+            table.insert(Library.Corners, New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = WindowIcon,
+            }))
+            Library:AddOutline(WindowIcon)
+            local LogoImage = New("ImageLabel", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.new(1, -4, 1, -4),
+                Parent = WindowIcon,
+            })
             if Icon then
-                Library:ApplyLucideIcon(WindowIcon, Icon)
+                Library:ApplyLucideIcon(LogoImage, Icon)
             end
         else
             WindowIcon = New("TextLabel", {
