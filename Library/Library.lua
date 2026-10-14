@@ -10820,6 +10820,8 @@ function Library:CreateWindow(WindowInfo)
     local IsDefaultSearchbarSize = WindowInfo.SearchbarSize == UDim2.fromScale(1, 1)
     local MainFrame
     local DividerLine
+    local LogoDivider
+    local LogoExtra = 14 -- extra sidebar header height below the 48px top bar (bigger logo + its divider)
     local TitleHolder
     local WindowTitle
     local WindowIcon
@@ -10959,7 +10961,7 @@ function Library:CreateWindow(WindowInfo)
         --// Title \\--
         TitleHolder = New("Frame", {
             BackgroundTransparency = 1,
-            Size = UDim2.new(0, InitialLeftWidth, 1, 0),
+            Size = UDim2.new(0, InitialLeftWidth, 0, 48 + LogoExtra),
             Parent = TopBar,
         })
         New("UIListLayout", {
@@ -11174,14 +11176,19 @@ function Library:CreateWindow(WindowInfo)
             Library:ApplyLucideIcon(WindowResizeIcon, ResizeIcon)
         end
 
+        LogoDivider = Library:MakeLine(MainFrame, {
+            Position = UDim2.fromOffset(8, 48 + LogoExtra),
+            Size = UDim2.fromOffset(InitialLeftWidth - 16, 1),
+        })
+
         --// Tabs \\--
         Tabs = New("ScrollingFrame", {
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = "BackgroundColor",
             CanvasSize = UDim2.fromScale(0, 0),
-            Position = UDim2.fromOffset(0, 49),
+            Position = UDim2.fromOffset(0, 49 + LogoExtra),
             ScrollBarThickness = 0,
-            Size = UDim2.new(0, InitialLeftWidth, 1, -70),
+            Size = UDim2.new(0, InitialLeftWidth, 1, -70 - LogoExtra),
             Parent = MainFrame,
         })
         New("UIListLayout", {
@@ -11253,7 +11260,7 @@ function Library:CreateWindow(WindowInfo)
         UtilityDivider.Visible = Height > 0
         UtilityDivider.Position = UDim2.new(0, 8, 1, -21 - Height)
         UtilityDivider.Size = UDim2.fromOffset(Tabs.Size.X.Offset - 16, 1)
-        Tabs.Size = UDim2.new(0, Tabs.Size.X.Offset, 1, -70 - Height)
+        Tabs.Size = UDim2.new(0, Tabs.Size.X.Offset, 1, -70 - LogoExtra - Height)
     end
     Library:GiveSignal(UtilityTabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(RefreshUtilityTabs))
     RefreshUtilityTabs()
@@ -11530,9 +11537,10 @@ function Library:CreateWindow(WindowInfo)
 
         DividerLine.Position = UDim2.fromOffset(Width, 0)
 
-        TitleHolder.Size = UDim2.new(0, Width, 1, 0)
+        TitleHolder.Size = UDim2.new(0, Width, 0, 48 + LogoExtra)
+        LogoDivider.Size = UDim2.fromOffset(Width - 16, 1)
         RightWrapper.Size = UDim2.new(1, -Width - 57 - 1, 1, -16)
-        Tabs.Size = UDim2.new(0, Width, 1, -70)
+        Tabs.Size = UDim2.new(0, Width, 1, -70 - LogoExtra)
         Container.Size = UDim2.new(1, -Width - 1, 1, -70)
 
         RefreshUtilityTabs()
