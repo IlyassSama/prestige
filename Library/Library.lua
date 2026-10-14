@@ -2602,6 +2602,80 @@ function Library:PlayTabAnimation(Tab, Showing: boolean, OnComplete: (() -> ())?
     end
 end
 
+--// Rise-in: groupboxes of the shown tab/sub-tab float up from below, one after another. \\--
+local RiseTweens = setmetatable({}, { __mode = "k" })
+
+function Library:AnimationsEnabled()
+    return Library.Animations ~= nil and Library.Animations.TabSwitch == true
+end
+
+function Library:PlayRiseIn(Tab)
+    if not Library:AnimationsEnabled() or type(Tab) ~= "table" then
+        return
+    end
+
+    local Order = {}
+    for _, Boxes in { Tab.Groupboxes or {}, Tab.Tabboxes or {} } do
+        for _, Box in Boxes do
+            if not Box.Destroyed and Box.BoxHolder and Box.BoxHolder.Visible then
+                table.insert(Order, Box.BoxHolder)
+            end
+        end
+    end
+    table.sort(Order, function(A, B)
+        if A.Parent ~= B.Parent then
+            return A.Parent.Name < B.Parent.Name
+        end
+        return A.AbsolutePosition.Y < B.AbsolutePosition.Y
+    end)
+
+    local Rise = Library.RiseOffset or 34
+    local Step = Library.RiseStagger or 0.045
+    local Counts = {}
+    for _, Holder in Order do
+        local Padding = Holder:FindFirstChildOfClass("UIPadding")
+        if not Padding then
+            continue
+        end
+        local Previous = RiseTweens[Padding]
+        if Previous then
+            Previous:Cancel()
+        end
+
+        local Index = (Counts[Holder.Parent] or 0)
+        Counts[Holder.Parent] = Index + 1
+
+        Padding.PaddingTop = UDim.new(0, 4 + Rise)
+        local Tween = TweenService:Create(Padding, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, 0, false, math.min(Index, 8) * Step), {
+            PaddingTop = UDim.new(0, 4),
+        })
+        RiseTweens[Padding] = Tween
+        Tween.Completed:Once(function()
+            if RiseTweens[Padding] == Tween then
+                RiseTweens[Padding] = nil
+            end
+        end)
+        Tween:Play()
+    end
+end
+
+function Library:PlayIconPop(Icon)
+    if not Library:AnimationsEnabled() or not Icon then
+        return
+    end
+
+    local Scale = Icon:FindFirstChild("PopScale")
+    if not Scale then
+        Scale = Instance.new("UIScale")
+        Scale.Name = "PopScale"
+        Scale.Parent = Icon
+    end
+    Scale.Scale = 0.55
+    Icon.Rotation = -24
+    TweenService:Create(Scale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+    TweenService:Create(Icon, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+end
+
 --// Pop Out \\--
 function Library:MakeBoxPopOut(Box: any, Options: {
     Enabled: boolean?,
@@ -12122,11 +12196,26 @@ function Library:CreateWindow(WindowInfo)
                 if Tab.Destroyed then
                     return
                 end
+                local Changed = Tab.ActiveSubTab ~= SubTab
                 Tab.ActiveSubTab = SubTab
                 if Library.ActiveTab ~= Tab then
                     Tab:Show()
+                    return
                 end
                 Tab:RefreshSubTabs()
+                if Changed and Library:AnimationsEnabled() then
+                    Indicator.AnchorPoint = Vector2.new(0.5, 1)
+                    Indicator.Position = UDim2.fromScale(0.5, 1)
+                    Indicator.Size = UDim2.new(0, 0, 0, 2)
+                    TweenService:Create(Indicator, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(1, 0, 0, 2),
+                    }):Play()
+                    Button.BackgroundTransparency = 0.8
+                    TweenService:Create(Button, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundTransparency = 0.2,
+                    }):Play()
+                    Library:PlayRiseIn(Tab)
+                end
             end
             function SubTab:AddGroupbox(Info)
                 Info = table.clone(Info or {})
@@ -13009,6 +13098,8 @@ function Library:CreateWindow(WindowInfo)
 
             Library.ActiveTab = Tab
             Tab:RefreshSubTabs()
+            Library:PlayRiseIn(Tab)
+            Library:PlayIconPop(TabIcon)
 
             if Library.Searching then
                 Library:UpdateSearch(Library.SearchText)
@@ -13499,6 +13590,7 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
 
             Library.ActiveTab = Tab
+            Library:PlayIconPop(TabIcon)
             CurrentTabInfo.Visible = false
             if IsDefaultSearchbarSize then SearchBox.Size = UDim2.fromScale(1, 1) end
 
