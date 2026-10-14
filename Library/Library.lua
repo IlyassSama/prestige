@@ -10820,6 +10820,7 @@ function Library:CreateWindow(WindowInfo)
     local IsDefaultSearchbarSize = WindowInfo.SearchbarSize == UDim2.fromScale(1, 1)
     local MainFrame
     local DividerLine
+    local LogoLine
     local TitleHolder
     local WindowTitle
     local WindowIcon
@@ -10888,9 +10889,10 @@ function Library:CreateWindow(WindowInfo)
                 Parent = MainFrame,
             })
         end
-        Library:MakeLine(MainFrame, {
+        -- The line under the top bar only spans the sidebar (under the logo), like the line above the footer.
+        LogoLine = Library:MakeLine(MainFrame, {
             Position = UDim2.fromOffset(0, 48),
-            Size = UDim2.new(1, 0, 0, 1),
+            Size = UDim2.fromOffset(InitialLeftWidth, 1),
         })
 
         DividerLine = New("Frame", {
@@ -10976,25 +10978,12 @@ function Library:CreateWindow(WindowInfo)
 
         if WindowInfo.Icon then
             local Icon = Library:GetCustomIcon(WindowInfo.Icon)
-            -- Logo sits in a rounded square so it reads bigger; the square fills the 48px top bar.
-            WindowIcon = New("Frame", {
-                BackgroundColor3 = "MainColor",
-                Size = UDim2.fromOffset(WindowInfo.IconSize.X.Offset + 6, WindowInfo.IconSize.Y.Offset + 6),
+            WindowIcon = New("ImageLabel", {
+                Size = WindowInfo.IconSize,
                 Parent = TitleHolder,
             })
-            table.insert(Library.Corners, New("UICorner", {
-                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                Parent = WindowIcon,
-            }))
-            Library:AddOutline(WindowIcon)
-            local LogoImage = New("ImageLabel", {
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.new(1, -4, 1, -4),
-                Parent = WindowIcon,
-            })
             if Icon then
-                Library:ApplyLucideIcon(LogoImage, Icon)
+                Library:ApplyLucideIcon(WindowIcon, Icon)
             end
         else
             WindowIcon = New("TextLabel", {
@@ -11546,6 +11535,7 @@ function Library:CreateWindow(WindowInfo)
         Width = math.clamp(Width, WindowInfo.SidebarIconsOnly and 64 or 48, math.max(64, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1))
 
         DividerLine.Position = UDim2.fromOffset(Width, 0)
+        LogoLine.Size = UDim2.fromOffset(Width, 1)
 
         TitleHolder.Size = UDim2.new(0, Width, 1, 0)
         RightWrapper.Size = UDim2.new(1, -Width - 57 - 1, 1, -16)
