@@ -380,7 +380,7 @@ local Templates = {
 
         Position = UDim2.fromOffset(6, 6),
         Size = UDim2.fromOffset(720, 600),
-        IconSize = UDim2.fromOffset(30, 30),
+        IconSize = UDim2.fromOffset(40, 40),
 
         AutoShow = true,
         Center = true,
@@ -475,7 +475,7 @@ local Templates = {
     Loading = {
         Title = "mspaint",
         Icon = 95816097006870,
-        IconSize = UDim2.fromOffset(30, 30),
+        IconSize = UDim2.fromOffset(40, 40),
 
         LoadingIcon = CustomImageManager.GetAsset("LoadingIcon"),
         LoadingIconColor = nil,
