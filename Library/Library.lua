@@ -3561,6 +3561,97 @@ function Library:AddDraggableImageButton(...)
     return DraggableImageButton
 end
 
+-- A draggable pill on the screen (logo, name, state) that runs Func when tapped. Used as the mobile show/hide button.
+function Library:AddLogoPill(Params)
+    local Pill = {}
+    local Button = New("TextButton", {
+        BackgroundColor3 = "BackgroundColor",
+        Position = UDim2.fromOffset(12, 80),
+        Size = UDim2.fromOffset(Params.Width or 168, Params.Height or 44),
+        Text = "",
+        ZIndex = 1,
+        Parent = Floats,
+    })
+    New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Button })
+    Library:AddOutline(Button)
+    table.insert(Library.Scales, New("UIScale", { Parent = Button }))
+
+    local Logo = New("ImageLabel", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 6, 0.5, 0),
+        Size = UDim2.fromOffset((Params.Height or 44) - 12, (Params.Height or 44) - 12),
+        ZIndex = 2,
+        Parent = Button,
+    })
+    New("UICorner", { CornerRadius = UDim.new(0, 10), Parent = Logo })
+    local Name = New("TextLabel", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, (Params.Height or 44) + 2, 0.5, 0),
+        Size = UDim2.new(1, -((Params.Height or 44) + 62), 1, 0),
+        Text = Params.Text or "",
+        TextColor3 = "FontColor",
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        ZIndex = 2,
+        Parent = Button,
+    })
+    local State = New("TextLabel", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(1, -14, 0.5, 0),
+        Size = UDim2.fromOffset(46, 20),
+        Text = "",
+        TextColor3 = "AccentColor",
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        ZIndex = 2,
+        Parent = Button,
+    })
+
+    local function Refresh()
+        State.Text = Library.Toggled and "Hide" or "Show"
+    end
+    Library:GiveSignal(RunService.Heartbeat:Connect(Refresh))
+    Refresh()
+
+    Button.InputBegan:Connect(function(Input: InputObject)
+        if not IsClickInput(Input) then
+            return
+        end
+        local StartPos = Input.Position
+        local Changed
+        Changed = Input.Changed:Connect(function()
+            if Input.UserInputState ~= Enum.UserInputState.End then
+                return
+            end
+            if (Input.Position - StartPos).Magnitude <= 12 then
+                Library:SafeCallback(Params.Func, Pill)
+            end
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+        end)
+    end)
+
+    local Icon = Library:GetCustomIcon(Params.Icon or "sparkles")
+    if Icon then
+        Library:ApplyLucideIcon(Logo, Icon)
+    end
+
+    Library:MakeDraggable(Button, Button, true)
+    if not table.find(Library.DraggableElements, Button) then
+        table.insert(Library.DraggableElements, Button)
+    end
+    PositionDraggable(Button, Button.Position)
+
+    Pill.Button = Button
+    return Pill
+end
+
 --// Watermark - Deprecated \\--
 do
     local WatermarkLabel = Library:AddDraggableLabel("")
