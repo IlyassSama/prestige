@@ -10820,7 +10820,6 @@ function Library:CreateWindow(WindowInfo)
     local IsDefaultSearchbarSize = WindowInfo.SearchbarSize == UDim2.fromScale(1, 1)
     local MainFrame
     local DividerLine
-    local LogoLine
     local TitleHolder
     local WindowTitle
     local WindowIcon
@@ -10889,11 +10888,6 @@ function Library:CreateWindow(WindowInfo)
                 Parent = MainFrame,
             })
         end
-        -- The line under the top bar only spans the sidebar (under the logo), like the line above the footer.
-        LogoLine = Library:MakeLine(MainFrame, {
-            Position = UDim2.fromOffset(8, 48),
-            Size = UDim2.fromOffset(InitialLeftWidth - 16, 1),
-        })
 
         DividerLine = New("Frame", {
             BackgroundColor3 = "OutlineColor",
@@ -11535,7 +11529,6 @@ function Library:CreateWindow(WindowInfo)
         Width = math.clamp(Width, WindowInfo.SidebarIconsOnly and 64 or 48, math.max(64, MainFrame.Size.X.Offset - WindowInfo.MinContainerWidth - 1))
 
         DividerLine.Position = UDim2.fromOffset(Width, 0)
-        LogoLine.Size = UDim2.fromOffset(Width - 16, 1)
 
         TitleHolder.Size = UDim2.new(0, Width, 1, 0)
         RightWrapper.Size = UDim2.new(1, -Width - 57 - 1, 1, -16)
