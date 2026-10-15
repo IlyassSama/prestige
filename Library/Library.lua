@@ -14449,6 +14449,46 @@ function Library:CreateWindow(WindowInfo)
         end
     end
 
+    local FadedItems = {}
+
+    -- False when the element sits inside something hidden (another tab, a closed groupbox), so it isn't worth fading
+    local function IsFadeVisible(Desc: Instance): boolean
+        local Parent = Desc
+        while Parent and Parent ~= MainFrame do
+            if Parent:IsA("GuiObject") and not Parent.Visible then
+                return false
+            end
+            Parent = Parent.Parent
+        end
+        return true
+    end
+
+    local function RunFade(Items, Duration: number)
+        if #Items == 0 then
+            return
+        end
+
+        local Start = os.clock()
+        local Info = Library.WindowAnimationInfo
+        local Connection
+        Connection = RunService.RenderStepped:Connect(function()
+            local Alpha = math.clamp((os.clock() - Start) / math.max(Duration, 0.01), 0, 1)
+            local Eased = TweenService:GetValue(Alpha, Info.EasingStyle, Info.EasingDirection)
+
+            for Index = 1, #Items do
+                local Item = Items[Index]
+                local Desc = Item[1]
+                if Desc.Parent then
+                    Desc[Item[2]] = Item[3] + (Item[4] - Item[3]) * Eased
+                end
+            end
+
+            if Alpha >= 1 then
+                Connection:Disconnect()
+            end
+        end)
+    end
+
     function Window:Toggle(Value: boolean?)
         if Fading then
             return
@@ -14485,24 +14525,55 @@ function Library:CreateWindow(WindowInfo)
                 task.delay(FadeTime / 2, FadeInstance, MainFrame, { "BackgroundTransparency" })
             end
 
-            for _, Instance in MainFrame:GetDescendants() do
-                if Instance == TopBar then
-                    continue
-                end
-
-                if Instance:IsA("GuiObject") then
-                    local ClassName = Instance.ClassName
-                    if ClassName == "ImageLabel" or ClassName == "ImageButton" then
-                        FadeInstance(Instance, ImageProperties)
-                    elseif ClassName == "TextLabel" or ClassName == "TextBox" or ClassName == "TextButton" then
-                        FadeInstance(Instance, TextProperties)
-                    else
-                        FadeInstance(Instance, GuiProperties)
+            -- One fade loop over only the elements that are on screen. Creating a tween per property of every
+            -- element (hidden tabs included) is what used to freeze the game for a moment on every hide / show.
+            local Items = {}
+            if Library.Toggled then
+                -- Showing: restore what the last hide faded; elements in tabs that are not visible snap back instantly
+                for _, Item in FadedItems do
+                    local Desc, Prop, Original = Item[1], Item[2], Item[3]
+                    if Desc.Parent then
+                        if IsFadeVisible(Desc) then
+                            table.insert(Items, { Desc, Prop, Desc[Prop], Original })
+                        else
+                            Desc[Prop] = Original
+                        end
                     end
-                elseif Instance.ClassName == "UIStroke" then
-                    FadeInstance(Instance, StrokeProperties)
+                end
+                FadedItems = {}
+            else
+                FadedItems = {}
+                for _, Instance in MainFrame:GetDescendants() do
+                    if Instance == TopBar then
+                        continue
+                    end
+
+                    local Properties
+                    if Instance:IsA("GuiObject") then
+                        local ClassName = Instance.ClassName
+                        if ClassName == "ImageLabel" or ClassName == "ImageButton" then
+                            Properties = ImageProperties
+                        elseif ClassName == "TextLabel" or ClassName == "TextBox" or ClassName == "TextButton" then
+                            Properties = TextProperties
+                        else
+                            Properties = GuiProperties
+                        end
+                    elseif Instance.ClassName == "UIStroke" then
+                        Properties = StrokeProperties
+                    end
+
+                    if Properties and IsFadeVisible(Instance) then
+                        for _, Prop in Properties do
+                            local Value = Instance[Prop]
+                            if Value ~= 1 then
+                                table.insert(FadedItems, { Instance, Prop, Value })
+                                table.insert(Items, { Instance, Prop, Value, 1 })
+                            end
+                        end
+                    end
                 end
             end
+            RunFade(Items, FadeTime)
 
             task.delay(FadeTime, function()
                 MainFrame.Visible = Library.Toggled
