@@ -1679,8 +1679,18 @@ Library.TabAccent = {
         esp = { Color3.fromRGB(255, 72, 96), Color3.fromRGB(255, 154, 64) },
         misc = { Color3.fromRGB(38, 208, 132), Color3.fromRGB(58, 232, 218) },
         ["ui settings"] = { Color3.fromRGB(70, 150, 255), Color3.fromRGB(150, 110, 255) },
+
+        -- Sae tabs
+        dashboard = { Color3.fromRGB(148, 163, 184), Color3.fromRGB(125, 211, 252) },
+        stealing = { Color3.fromRGB(244, 63, 133), Color3.fromRGB(251, 113, 113) },
+        eggs = { Color3.fromRGB(190, 220, 30), Color3.fromRGB(250, 204, 21) },
+        pets = { Color3.fromRGB(251, 120, 40), Color3.fromRGB(251, 191, 36) },
+        progression = { Color3.fromRGB(34, 197, 94), Color3.fromRGB(132, 204, 22) },
+        ["lab & fuse"] = { Color3.fromRGB(217, 70, 239), Color3.fromRGB(168, 85, 247) },
+        events = { Color3.fromRGB(6, 182, 212), Color3.fromRGB(20, 184, 166) },
     },
 }
+local TabAccentAutoHues, TabAccentAutoCount = {}, 0
 
 local function GetTabAccentPair(Name: string)
     local Pair = Library.TabAccent.Palette[string.lower(Name)]
@@ -1688,11 +1698,14 @@ local function GetTabAccentPair(Name: string)
         return Pair[1], Pair[2]
     end
 
-    local Hash = 0
-    for Index = 1, #Name do
-        Hash = (Hash * 31 + string.byte(Name, Index)) % 360
+    -- Unknown tabs get hues spread by the golden angle in the order they are first seen, so two never match.
+    local Key = string.lower(Name)
+    local Hue = TabAccentAutoHues[Key]
+    if not Hue then
+        TabAccentAutoCount += 1
+        Hue = (0.08 + TabAccentAutoCount * 0.618034) % 1
+        TabAccentAutoHues[Key] = Hue
     end
-    local Hue = Hash / 360
     return Color3.fromHSV(Hue, 0.72, 1), Color3.fromHSV((Hue + 0.07) % 1, 0.62, 1)
 end
 
