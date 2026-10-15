@@ -1665,6 +1665,78 @@ function Library:AddAccentGradient(Parent: GuiObject, Rotation: number?)
     })
 end
 
+--// Tab Accent \\--
+-- Each tab owns an accent pair (color + a close analogous color for the gradient). Selecting a tab tweens the whole
+-- scheme to it, so the UI feels alive. Pairs stay within a narrow hue range so gradients never turn muddy.
+Library.TabAccent = {
+    Enabled = true,
+    Duration = 0.45,
+    Palette = {
+        credits = { Color3.fromRGB(255, 176, 46), Color3.fromRGB(255, 104, 96) },
+        player = { Color3.fromRGB(35, 112, 255), Color3.fromRGB(40, 226, 255) },
+        visuals = { Color3.fromRGB(150, 88, 255), Color3.fromRGB(255, 96, 214) },
+        esp = { Color3.fromRGB(255, 72, 96), Color3.fromRGB(255, 154, 64) },
+        misc = { Color3.fromRGB(38, 208, 132), Color3.fromRGB(58, 232, 218) },
+        ["ui settings"] = { Color3.fromRGB(70, 150, 255), Color3.fromRGB(150, 110, 255) },
+    },
+}
+
+local function GetTabAccentPair(Name: string)
+    local Pair = Library.TabAccent.Palette[string.lower(Name)]
+    if Pair then
+        return Pair[1], Pair[2]
+    end
+
+    local Hash = 0
+    for Index = 1, #Name do
+        Hash = (Hash * 31 + string.byte(Name, Index)) % 360
+    end
+    local Hue = Hash / 360
+    return Color3.fromHSV(Hue, 0.72, 1), Color3.fromHSV((Hue + 0.07) % 1, 0.62, 1)
+end
+
+local TabAccentToken = 0
+function Library:SetTabAccent(Name: string)
+    local Config = Library.TabAccent
+    if not Config.Enabled or Library.Unloaded or typeof(Name) ~= "string" then
+        return
+    end
+
+    local ToA, ToB = GetTabAccentPair(Name)
+    local FromA = Library.Scheme.AccentColor
+    local FromGradient = Library.Scheme.AccentGradient
+    local FromB = FromGradient and FromGradient.Keypoints[#FromGradient.Keypoints].Value or FromA
+
+    TabAccentToken += 1
+    local Token = TabAccentToken
+    local Start = os.clock()
+    local Duration = math.max(Config.Duration, 0.05)
+
+    local Connection
+    Connection = RunService.RenderStepped:Connect(function()
+        if Token ~= TabAccentToken or Library.Unloaded then
+            Connection:Disconnect()
+            return
+        end
+
+        local Alpha = math.clamp((os.clock() - Start) / Duration, 0, 1)
+        local Eased = TweenService:GetValue(Alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local A = FromA:Lerp(ToA, Eased)
+        local B = FromB:Lerp(ToB, Eased)
+
+        Library.Scheme.AccentColor = A
+        Library.Scheme.AccentGradient = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, A),
+            ColorSequenceKeypoint.new(1, B),
+        })
+        Library:UpdateColorsUsingRegistry()
+
+        if Alpha >= 1 then
+            Connection:Disconnect()
+        end
+    end)
+end
+
 --// Main Instances \\-
 local function SafeParentUI(Instance: Instance, Parent: Instance | () -> Instance)
     local success, _error = pcall(function()
@@ -3564,9 +3636,16 @@ end
 -- A draggable pill on the screen (logo, name, state) that runs Func when tapped. Used as the mobile show/hide button.
 function Library:AddLogoPill(Params)
     local Pill = {}
+    -- Centered at the very top of the screen: the ScreenGui sits below the Roblox top bar, so lift it by the inset.
+    local Inset = 0
+    pcall(function()
+        Inset = GuiService:GetGuiInset().Y
+    end)
+    local TopOffset = 3 - Inset
     local Button = New("TextButton", {
         BackgroundColor3 = "BackgroundColor",
-        Position = UDim2.fromOffset(12, 80),
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, TopOffset),
         Size = UDim2.fromOffset(Params.Width or 168, Params.Height or 44),
         Text = "",
         ZIndex = 1,
@@ -3646,7 +3725,6 @@ function Library:AddLogoPill(Params)
     if not table.find(Library.DraggableElements, Button) then
         table.insert(Library.DraggableElements, Button)
     end
-    PositionDraggable(Button, Button.Position)
 
     Pill.Button = Button
     return Pill
@@ -13192,6 +13270,7 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
 
             Library.ActiveTab = Tab
+            Library:SetTabAccent(Name)
             Tab:RefreshSubTabs()
             Library:PlayRiseIn(Tab)
             Library:PlayIconPop(TabIcon)
@@ -13685,6 +13764,7 @@ function Library:CreateWindow(WindowInfo)
             Tab:RefreshSides()
 
             Library.ActiveTab = Tab
+            Library:SetTabAccent(Name)
             Library:PlayIconPop(TabIcon)
             CurrentTabInfo.Visible = false
             if IsDefaultSearchbarSize then SearchBox.Size = UDim2.fromScale(1, 1) end
