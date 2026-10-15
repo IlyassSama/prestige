@@ -1670,7 +1670,7 @@ end
 -- scheme to it, so the UI feels alive. Pairs stay within a narrow hue range so gradients never turn muddy.
 Library.TabAccent = {
     Enabled = true,
-    Duration = 0.4,
+    Duration = 0.45,
     Listeners = {}, -- functions called as (AccentColor, AccentEndColor, Alpha) on every repaint
     Palette = {
         credits = { Color3.fromRGB(255, 176, 46), Color3.fromRGB(255, 104, 96) },
@@ -1697,6 +1697,45 @@ local function GetTabAccentPair(Name: string)
 end
 
 local TabAccentToken = 0
+
+-- Script API ------------------------------------------------------------------------------------------------
+--   Library:SetTabAccentColor("Visuals", Color3.fromRGB(255, 0, 90))            -- color only, gradient end is derived
+--   Library:SetTabAccentColor("Visuals", Color3.fromRGB(255, 0, 90), Color3.fromRGB(255, 140, 60))
+--   Library:SetTabAccentEnabled(false)                                          -- stop switching colors per tab
+--   Library:SetAccentColors(Color3.fromRGB(0, 255, 120))                        -- set the accent right now (and stop tab switching)
+--   Library.TabAccent.Palette / Library.TabAccent.Duration                      -- edit directly if you prefer
+local function DeriveAccentEnd(Color: Color3): Color3
+    local H, S, V = Color:ToHSV()
+    return Color3.fromHSV((H + 0.07) % 1, math.clamp(S * 0.86, 0, 1), V)
+end
+
+function Library:SetTabAccentColor(TabName: string, ColorA: Color3, ColorB: Color3?)
+    Library.TabAccent.Palette[string.lower(TabName)] = { ColorA, ColorB or DeriveAccentEnd(ColorA) }
+
+    local Active = Library.ActiveTab
+    if Active and typeof(Active.Name) == "string" and string.lower(Active.Name) == string.lower(TabName) then
+        Library:SetTabAccent(Active.Name)
+    end
+end
+
+function Library:SetTabAccentEnabled(Enabled: boolean)
+    Library.TabAccent.Enabled = Enabled == true
+
+    local Active = Library.ActiveTab
+    if Library.TabAccent.Enabled and Active and typeof(Active.Name) == "string" then
+        Library:SetTabAccent(Active.Name)
+    end
+end
+
+function Library:SetAccentColors(ColorA: Color3, ColorB: Color3?)
+    Library.TabAccent.Enabled = false
+    TabAccentToken += 1 -- cancels a fade that is still running
+
+    Library.Scheme.AccentColor = ColorA
+    Library.Scheme.AccentGradient = ColorSequence.new(ColorA, ColorB or DeriveAccentEnd(ColorA))
+    Library:UpdateColorsUsingRegistry()
+end
+
 function Library:SetTabAccent(Name: string)
     local Config = Library.TabAccent
     if not Config.Enabled or Library.Unloaded or typeof(Name) ~= "string" then
@@ -1714,7 +1753,7 @@ function Library:SetTabAccent(Name: string)
     TabAccentToken += 1
     local Token = TabAccentToken
     local Duration = math.max(Config.Duration, 0.05)
-    local Step = 1 / 24 -- the tween only repaints ~24 times a second; the eye can't tell, the frame time can
+    local Step = 1 / 30 -- repaint ~30 times a second; smooth to the eye, far cheaper than every frame
 
     -- Only accent-bound properties are touched (never the whole registry), and the list is built once per switch.
     -- The build is deferred so it doesn't pile onto the frame that is already showing the new tab.
@@ -1986,87 +2025,13 @@ function Library:SetIconModule(module: IconModule)
     CloseIcon = Library:GetIcon("x")
 end
 
--- Icons come from Molto (https://github.com/notpoiu/Molto), using the Phosphor set. Every icon name the hub already
--- uses is a Lucide name, so IconAliases points those at their Phosphor counterpart; a name Phosphor knows directly is
--- used as is, and anything else falls back to Lucide through Molto so no icon ever goes missing.
-Library.IconProvider = "phosphor"
-local IconAliases = {
-    ["sparkles"] = "sparkle",
-    ["person-standing"] = "person-simple",
-    ["scan-eye"] = "eye",
-    ["scan-face"] = "user-focus",
-    ["box"] = "cube",
-    ["badge-info"] = "info",
-    ["notebook-tabs"] = "notebook",
-    ["link-2"] = "link",
-    ["venetian-mask"] = "mask-happy",
-    ["radar"] = "broadcast",
-    ["folder-cog"] = "gear-six",
-    ["settings"] = "gear",
-    ["gamepad-2"] = "game-controller",
-    ["layout-dashboard"] = "squares-four",
-    ["trending-up"] = "trend-up",
-    ["flask-conical"] = "flask",
-    ["calendar-days"] = "calendar-dots",
-    ["list-ordered"] = "list-numbers",
-    ["chart-no-axes-combined"] = "chart-line-up",
-    ["chevron-up"] = "caret-up",
-    ["move-diagonal-2"] = "corners-out",
-    ["move"] = "arrows-out-cardinal",
-    ["square-arrow-down-left"] = "arrow-square-down-left",
-    ["search"] = "magnifying-glass",
-    ["zap"] = "lightning",
-}
-
-local function BuildMoltoModule(Molto: any): IconModule
-    local Cache = {}
-    local Module = {}
-
-    local function Lookup(Name: string, Provider: string)
-        local Found = Molto.GetAsset(Name, Provider)
-        if Found then
-            return {
-                Url = Found.Url,
-                ImageRectOffset = Found.ImageRectOffset,
-                ImageRectSize = Found.ImageRectSize,
-                IconName = Name,
-            }
-        end
-    end
-
-    function Module.GetAsset(Name: string)
-        local Cached = Cache[Name]
-        if Cached ~= nil then
-            return Cached or nil
-        end
-
-        local Provider = Library.IconProvider
-        local Result = Lookup(IconAliases[Name] or Name, Provider)
-            or Lookup(Name, Provider)
-            or Lookup(Name, "lucide")
-        Cache[Name] = Result or false
-        return Result
-    end
-
-    return Module
-end
-
-local MoltoFetched, MoltoModule = pcall(function()
-    local Molto = loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Molto/main/source.lua"))()
-    Molto.SetProvider(Library.IconProvider)
-    return BuildMoltoModule(Molto)
+local OnlineFetchIcons, OnlineIcons = pcall(function()
+    return (loadstring(
+        game:HttpGet("https://raw.githubusercontent.com/mstudio45/lucide-roblox-direct/refs/heads/main/source.lua")
+    ) :: () -> IconModule)()
 end)
-if MoltoFetched and MoltoModule then
-    Library:SetIconModule(MoltoModule)
-else
-    local OnlineFetchIcons, OnlineIcons = pcall(function()
-        return (loadstring(
-            game:HttpGet("https://raw.githubusercontent.com/mstudio45/lucide-roblox-direct/refs/heads/main/source.lua")
-        ) :: () -> IconModule)()
-    end)
-    if OnlineFetchIcons and OnlineIcons then
-        Library:SetIconModule(OnlineIcons)
-    end
+if OnlineFetchIcons and OnlineIcons then
+    Library:SetIconModule(OnlineIcons)
 end
 
 --// Lib Functions \\--
@@ -3777,7 +3742,6 @@ function Library:AddLogoPill(Params)
         Parent = Button,
     })
     New("UICorner", { CornerRadius = UDim.new(0, 10), Parent = Logo })
-    Library:AddAccentGradient(Logo, 45) -- the logo follows the tab accent
     local Name = New("TextLabel", {
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
@@ -11267,7 +11231,6 @@ function Library:CreateWindow(WindowInfo)
             if Icon then
                 Library:ApplyLucideIcon(WindowIcon, Icon)
             end
-            Library:AddAccentGradient(WindowIcon, 45) -- the hub logo follows the tab accent
         else
             WindowIcon = New("TextLabel", {
                 BackgroundTransparency = 1,
